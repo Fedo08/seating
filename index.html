@@ -1,0 +1,2076 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>正式晚宴主桌座位排定系統 v12</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@300;400;500;600;700&family=Noto+Serif+TC:wght@400;600;700;900&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            gala: {
+              canvas: '#edf3f8',
+              grid: '#dbe5f0',
+              panel: '#ffffff',
+              subtle: '#f5f8fc',
+              border: '#cddceb',
+              borderHover: '#a3bfda',
+              primary: '#1e3a5f',
+              primaryHover: '#152943',
+              gold: '#b68938',
+              goldBorder: '#c99e4b',
+              text: '#1a2734',
+              muted: '#62778f'
+            }
+          },
+          fontFamily: {
+            serif: ['"Noto Serif TC"', 'serif'],
+            display: ['"Cinzel"', '"Noto Serif TC"', 'serif'],
+            sans: ['"Inter"', 'system-ui', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* ===== 老花眼友善：全域字體加大 ===== */
+    html { font-size: 17px; }
+    body { font-size: 1rem; line-height: 1.55; }
+
+    /* 自訂平滑滾動條 */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #edf2f7; }
+    ::-webkit-scrollbar-thumb { background: #b9cddf; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #8aaac4; }
+
+    /* 優雅淡藍色宴會廳畫布網格 */
+    .banquet-grid {
+      background-color: #edf3f8;
+      background-image: 
+        radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.9) 0%, transparent 80%),
+        linear-gradient(to right, rgba(185, 205, 223, 0.45) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(185, 205, 223, 0.45) 1px, transparent 1px);
+      background-size: 100% 100%, 40px 40px, 40px 40px;
+    }
+
+    /* 拖曳懸浮動態視覺反饋 */
+    .seat-drop-hover {
+      box-shadow: 0 0 0 3px #b68938, 0 8px 20px rgba(182, 137, 56, 0.35) !important;
+      transform: scale(1.08) !important;
+      z-index: 50 !important;
+    }
+
+    .table-dragging, .decor-dragging {
+      opacity: 0.9;
+      cursor: grabbing !important;
+      box-shadow: 0 25px 40px -15px rgba(27, 47, 74, 0.25) !important;
+    }
+
+    /* 多選高亮 */
+    .guest-card-selected {
+      outline: 2px solid #b68938 !important;
+      outline-offset: 1px;
+      background-color: #fffbeb !important;
+      box-shadow: 0 0 0 3px rgba(182, 137, 56, 0.25);
+    }
+
+    /* 加大常用 Tailwind 文字級別（覆蓋預設） */
+    .text-xs  { font-size: 0.95rem !important; line-height: 1.4 !important; }
+    .text-\[10px\] { font-size: 0.85rem !important; }
+    .text-\[11px\] { font-size: 0.9rem !important; }
+    .text-\[9px\]  { font-size: 0.8rem !important; }
+    .text-\[8\.5px\] { font-size: 0.78rem !important; }
+    .text-sm  { font-size: 1.05rem !important; }
+    .text-base { font-size: 1.15rem !important; }
+    .text-xl  { font-size: 1.45rem !important; }
+    .text-2xl { font-size: 1.7rem !important; }
+    .text-lg  { font-size: 1.25rem !important; }
+
+    /* 按鈕與輸入框最小高度加大，方便點擊 */
+    button, .btn, select, input[type="text"], input[type="date"], input[type="time"], input[type="number"], textarea {
+      min-height: 2.4rem;
+    }
+    input, select, textarea {
+      font-size: 1rem !important;
+    }
+    /* 名牌不強制放大，改由 inline 控制兩行比例 */
+    #guestListContainer .font-bold { font-size: 1.05rem !important; }
+
+    /* ================= 嚴格 A4 直式雙頁專屬列印樣式 ================= */
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 6mm 8mm 6mm 8mm;
+      }
+      *, *::before, *::after {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      html, body {
+        background: #ffffff !important;
+        color: #1a2734 !important;
+        width: 100% !important;
+        height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+      }
+      body > header, aside, #banquetCanvasWrapper, .no-print {
+        display: none !important;
+      }
+      
+      #printStructuredSheet {
+        display: block !important;
+        width: 100% !important;
+      }
+
+      .print-page-1 {
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: flex-start !important;
+        align-items: center !important;
+        width: 100% !important;
+        min-height: 275mm !important;
+        max-height: 285mm !important;
+        box-sizing: border-box !important;
+        padding: 1mm 1.5mm 3mm 1.5mm !important; /* 無 footer，底部只需小留白 */
+        page-break-after: always !important;
+        break-after: page !important;
+        overflow: visible !important;
+      }
+      /* 隱藏第 1、2 頁 footer */
+      .print-page-1 > div:last-child,
+      .print-page-2 > footer {
+        display: none !important;
+      }
+      .print-page-1 #printSideBottom {
+        margin-bottom: 2mm !important;
+      }
+
+      .print-page-2 {
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: flex-start !important;
+        width: 100% !important;
+        min-height: 270mm !important;
+        max-height: 277mm !important;
+        box-sizing: border-box !important;
+        padding: 1.5mm 3mm 2mm 3mm !important;
+        page-break-before: always !important;
+        break-before: page !important;
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+        overflow: visible !important;
+      }
+
+      /* print-footer-hidden */
+      .print-page-1 > div:last-child,
+      .print-page-2 > footer,
+      #printFooterNote { display: none !important; }
+
+      /* 第2頁名冊表格：壓縮列高以容納最多 24 席 */
+      #printDirectoryTableBody td {
+        padding-top: 3px !important;
+        padding-bottom: 3px !important;
+      }
+      .print-page-2 table {
+        font-size: 10.5pt !important;
+      }
+      .print-page-2 thead th {
+        font-size: 10pt !important;
+        padding-top: 4px !important;
+        padding-bottom: 4px !important;
+      }
+    }
+  </style>
+</head>
+
+<body class="bg-gala-canvas text-gala-text font-sans h-screen flex flex-col overflow-hidden select-none">
+
+  <!-- ================= 頂部活動資訊與主控列 ================= -->
+  <header class="bg-white/95 border-b border-gala-border px-6 py-2.5 shrink-0 flex flex-wrap items-center justify-between gap-4 z-30 shadow-sm backdrop-blur no-print">
+    
+    <div class="flex items-center gap-3.5">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-gala-primary to-[#2a4d7d] flex items-center justify-center text-amber-300 shadow-sm shrink-0">
+        <i class="ph-fill ph-champagne text-xl"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <input type="text" id="eventTitle" value="2026 年度盛典尊榮晚宴" 
+                 class="bg-transparent border-b border-transparent hover:border-gala-gold/60 focus:border-gala-gold focus:outline-none text-2xl font-serif font-bold text-gala-primary tracking-wide transition px-1 py-0.5 rounded w-80 md:w-[28rem]" 
+                 title="點擊編輯晚宴名稱">
+        </div>
+        <div class="flex flex-wrap items-center gap-3 text-xs text-gala-muted mt-0.5 font-medium">
+          <div class="flex items-center gap-1.5">
+            <span class="text-amber-800 font-bold">日期：</span>
+            <input type="date" id="eventDate" value="2026-10-24" class="bg-transparent border-none text-gala-muted focus:text-gala-text focus:outline-none p-0 cursor-pointer font-medium">
+          </div>
+          <span class="text-gala-border">|</span>
+          <div class="flex items-center gap-1.5">
+            <span class="text-amber-800 font-bold">時間：</span>
+            <input type="time" id="eventTime" value="18:30" class="bg-transparent border-none text-gala-muted focus:text-gala-text focus:outline-none p-0 cursor-pointer font-medium">
+          </div>
+          <span class="text-gala-border">|</span>
+          <div class="flex items-center gap-1.5">
+            <span class="text-amber-800 font-bold">席設：</span>
+            <input type="text" id="eventVenue" value="萬豪尊爵宴會大禮堂" class="bg-transparent border-b border-transparent hover:border-gala-gold/50 focus:border-gala-gold focus:outline-none text-gala-muted focus:text-gala-text px-1 w-44 font-medium" placeholder="宴會地點">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2 flex-wrap">
+      
+      <div class="flex items-center bg-gala-subtle px-3 py-1.5 rounded-lg border border-gala-border text-xs gap-3 text-gala-muted font-medium">
+        <label class="flex items-center gap-1.5">主舞台在<select id="stageSide" class="bg-white border border-gala-border rounded px-1 py-0.5 text-gala-text focus:outline-none"><option value="top">上方</option><option value="right">右側</option><option value="bottom">下方</option><option value="left">左側</option><option value="none">不顯示</option></select></label>
+        <span class="text-gala-border">|</span>
+        <label class="flex items-center gap-1.5">迎賓大門在<select id="entranceSide" class="bg-white border border-gala-border rounded px-1 py-0.5 text-gala-text focus:outline-none"><option value="top">上方</option><option value="right">右側</option><option value="bottom">下方</option><option value="left">左側</option><option value="none">不顯示</option></select></label>
+      </div>
+
+      <div class="flex items-center bg-amber-50/70 border border-amber-200/80 rounded-lg p-0.5 gap-1">
+        <button id="btnSaveProject" class="flex items-center gap-1 px-2.5 py-1.5 text-xs text-amber-900 hover:bg-amber-100 rounded-md transition font-medium" title="下載完整專案備份檔 (.json) 或按 Ctrl+S">
+          <i class="ph-bold ph-floppy-disk text-sm text-amber-700"></i>
+          <span>儲存備份</span>
+        </button>
+        <button id="btnLoadProjectTrigger" class="flex items-center gap-1 px-2.5 py-1.5 text-xs text-amber-900 hover:bg-amber-100 rounded-md transition font-medium" title="讀取已備份的 .json 專案檔">
+          <i class="ph-bold ph-folder-open text-sm text-amber-700"></i>
+          <span>載入備份</span>
+        </button>
+        <input type="file" id="projectFileInput" accept=".json" class="hidden">
+      </div>
+
+      <button id="btnConfigPrimaryTable" class="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-gala-subtle border border-gala-border text-gala-primary text-xs rounded-lg transition active:scale-95 shadow-xs font-semibold">
+        <i class="ph-bold ph-gear text-sm text-gala-gold"></i>
+        <span>設定主桌人數</span>
+      </button>
+
+      <!-- 智能一鍵排位 -->
+      <button id="btnSmartSeat" class="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs rounded-lg transition active:scale-95 shadow-xs font-semibold" title="依身份優先順序自動安排未入座賓客">
+        <i class="ph-bold ph-magic-wand text-sm text-emerald-600"></i>
+        <span>智能排位</span>
+      </button>
+
+      <button id="btnExportCSV" class="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-gala-subtle border border-gala-border hover:border-gala-borderHover text-gala-text text-xs rounded-lg transition active:scale-95 shadow-xs font-medium" title="匯出 Excel / CSV 名冊">
+        <i class="ph-bold ph-file-csv text-base text-emerald-600"></i>
+        <span class="hidden sm:inline">名冊 CSV</span>
+      </button>
+
+      <button id="btnPrint" class="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white text-xs font-bold rounded-lg transition active:scale-95 shadow-sm" title="A4 直式列印 (第1頁座位圖、第2頁賓客名單)">
+        <i class="ph-bold ph-printer text-base"></i>
+        <span>列印配置 (A4雙頁)</span>
+      </button>
+
+      <button id="btnNewBlank" class="flex items-center gap-1 px-2.5 py-2 text-xs text-gala-primary hover:bg-gala-subtle rounded-lg transition border border-gala-border font-medium" title="清除範例資料，以空白名單開始新活動"><i class="ph-bold ph-file-plus text-sm text-gala-gold"></i><span>新活動(空白)</span></button>
+      <button id="btnResetAll" class="p-2 text-gala-muted hover:text-rose-600 hover:bg-rose-50 rounded-lg transition border border-transparent hover:border-rose-200" title="還原為範例資料">
+        <i class="ph-bold ph-arrow-counter-clockwise text-base"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- ================= 主體內容區 ================= -->
+  <div class="flex-1 flex overflow-hidden relative">
+
+    <!-- 1. 左側欄：賓客名冊與分類管理 -->
+    <aside id="sidebar" class="w-96 md:w-[28rem] bg-white border-r border-gala-border flex flex-col shrink-0 no-print transition-all duration-300 z-20 shadow-sm">
+      
+      <div class="p-4 border-b border-gala-border bg-gala-subtle/50">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <i class="ph-bold ph-users text-gala-primary text-lg"></i>
+            <h2 class="font-serif font-bold text-sm tracking-wide text-gala-primary">主桌賓客名冊</h2>
+          </div>
+          <div class="text-xs bg-white px-2.5 py-1 rounded-full border border-gala-border shadow-xs">
+            已就座 <span id="statSeated" class="text-gala-gold font-bold">0</span> / 
+            共 <span id="statSeatCapacity" class="text-gala-primary font-bold">20</span> 席
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 mt-3">
+          <button id="btnOpenBatchModal" class="flex items-center justify-center gap-1.5 py-1.5 px-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs rounded-lg border border-emerald-200 hover:border-emerald-300 transition font-medium">
+            <i class="ph-bold ph-microsoft-excel-logo text-emerald-600"></i>
+            <span>Excel 批量匯入</span>
+          </button>
+          <button id="btnOpenAddModal" class="flex items-center justify-center gap-1.5 py-1.5 px-2 bg-white hover:bg-slate-50 text-gala-primary text-xs rounded-lg border border-gala-border hover:border-gala-borderHover transition font-medium shadow-xs">
+            <i class="ph-bold ph-user-plus text-gala-gold"></i>
+            <span>單筆新增賓客</span>
+          </button>
+        </div>
+
+        <div class="mt-3 flex items-center gap-2">
+          <div class="relative flex-1">
+            <i class="ph ph-magnifying-glass absolute left-2.5 top-2 text-gala-muted text-xs"></i>
+            <input type="text" id="guestSearch" placeholder="搜尋姓名、單位、身份..." class="w-full bg-white border border-gala-border focus:border-gala-primary rounded-lg pl-7 pr-2 py-1.5 text-xs text-gala-text placeholder-gala-muted focus:outline-none">
+          </div>
+          <select id="tagFilter" class="bg-white border border-gala-border text-xs rounded-lg px-2 py-1.5 text-gala-muted focus:text-gala-text focus:outline-none focus:border-gala-primary">
+            <option value="ALL">全部單位</option>
+          </select>
+        </div>
+
+        <div class="flex items-center border-b border-gala-border mt-3 text-xs">
+          <button class="status-tab flex-1 py-1.5 border-b-2 border-gala-primary text-gala-primary font-bold transition" data-status="unseated">
+            未入座 (<span id="countUnseated">0</span>)
+          </button>
+          <button class="status-tab flex-1 py-1.5 border-b-2 border-transparent text-gala-muted hover:text-gala-text transition font-medium" data-status="seated">
+            已入座 (<span id="countSeated">0</span>)
+          </button>
+          <button class="status-tab flex-1 py-1.5 border-b-2 border-transparent text-gala-muted hover:text-gala-text transition font-medium" data-status="all">
+            全部 (<span id="countAll">0</span>)
+          </button>
+        </div>
+      </div>
+
+      <!-- 多選提示 + 操作列 -->
+      <div class="bg-gala-subtle px-4 py-1.5 text-[11px] text-gala-muted flex items-center justify-between border-b border-gala-border gap-2">
+        <span class="flex items-center gap-1"><i class="ph-bold ph-hand-grabbing text-gala-gold"></i> 拖曳賓客至席位 · <kbd class="px-1 bg-white border rounded text-[10px]">Ctrl</kbd> 多選</span>
+        <div class="flex items-center gap-2">
+          <span id="selectedCountBadge" class="hidden text-amber-800 font-bold"></span>
+          <button id="btnClearSelection" class="hidden text-gala-primary hover:underline font-medium">取消選取</button>
+          <button id="btnUnseatAll" class="text-rose-600 hover:text-rose-700 underline cursor-pointer font-medium">全體起立</button>
+        </div>
+      </div>
+
+      <div id="guestListContainer" class="flex-1 overflow-y-auto p-3 space-y-2">
+        <!-- JS 動態渲染 -->
+      </div>
+    </aside>
+
+    <!-- 2. 右側主區：宴會廳格局與圓桌配置畫布 -->
+    <main id="banquetCanvasWrapper" class="flex-1 h-full overflow-auto banquet-grid relative p-8">
+      
+      <div id="stageElement" class="absolute select-none flex items-center justify-center gap-2 bg-white/95 border-2 border-amber-600 text-slate-800 px-8 py-2.5 rounded-2xl shadow-sm z-10 backdrop-blur" style="width: 280px;">
+        <i class="ph-bold ph-screencast text-amber-600 text-lg pointer-events-none"></i>
+        <div class="font-serif font-bold text-xs tracking-widest text-slate-900 pointer-events-none">主 舞 台 方 位 (STAGE)</div>
+      </div>
+
+      <div id="entranceElement" class="absolute select-none flex items-center justify-center gap-2 bg-white/95 border-2 border-sky-400 text-sky-800 px-8 py-2.5 rounded-2xl shadow-sm z-10 backdrop-blur" style="width: 250px;">
+        <i class="ph-bold ph-door-open text-xl text-sky-600 pointer-events-none"></i>
+        <div class="font-bold text-xs tracking-wider text-sky-900 pointer-events-none">迎賓主入口方位</div>
+      </div>
+
+      <div id="tablesContainer" class="relative w-[1800px] h-[1600px] pointer-events-auto">
+        <!-- JS 動態生成圓桌實體 -->
+      </div>
+    </main>
+
+    <!-- ================= 專屬 A4 直式雙頁列印結構 ================= -->
+    <div id="printStructuredSheet" class="hidden w-full bg-white font-sans text-slate-900">
+      
+      <div class="print-page-1 w-full bg-white">
+        <header class="w-full text-center pt-0 pb-1 border-b-2 border-[#b68938] shrink-0">
+          <div class="uppercase font-display text-[#b68938] font-bold" style="font-size:8pt;letter-spacing:0.2em;margin:0;">VIP GALA BANQUET SEATING PROTOCOL</div>
+          <h1 class="printHeadingTitle font-serif font-black text-[#1a2734]" style="font-size:16pt;letter-spacing:0.12em;margin:2px 0;">2026 年度盛典尊榮晚宴</h1>
+          <div class="flex items-center justify-center gap-4 text-slate-700 font-semibold" style="font-size:9pt;">
+            <span><strong class="text-[#96631b]">日期：</strong><span class="printDateText">2026-10-24</span></span>
+            <span class="text-slate-300">|</span>
+            <span><strong class="text-[#96631b]">時間：</strong><span class="printTimeText">18:30</span></span>
+            <span class="text-slate-300">|</span>
+            <span><strong class="text-[#96631b]">席設：</strong><span class="printVenueText">萬豪尊爵宴會大禮堂</span></span>
+          </div>
+        </header>
+
+        <div class="w-full flex-1" style="display:grid;grid-template-columns:minmax(0,auto) 1fr minmax(0,auto);grid-template-rows:auto 1fr auto;min-height:0;width:100%;max-width:100%;">
+          <div id="printSideTop" style="grid-column:1/4;grid-row:1;" class="flex justify-center gap-2" style="padding:1px 0;"></div>
+          <div id="printSideLeft" style="grid-column:1;grid-row:2;" class="flex flex-col justify-center gap-2 pr-0.5"></div>
+          <section style="grid-column:2;grid-row:2;min-width:0;overflow:visible;" class="flex items-center justify-center relative">
+            <div id="printCircleContainer" class="relative" style="max-width:100%;"></div>
+          </section>
+          <div id="printSideRight" style="grid-column:3;grid-row:2;" class="flex flex-col justify-center gap-2 pl-0.5"></div>
+          <div id="printSideBottom" style="grid-column:1/4;grid-row:3;" class="flex justify-center gap-2" style="padding:1px 0;"></div>
+        </div>
+
+        <div class="w-full flex items-center justify-between text-slate-400 border-t border-slate-200 shrink-0" style="font-size:7pt;padding-top:2px;margin-top:0;line-height:1.1;">
+          <span id="printFooterNote">正式禮賓座次表</span>
+          <span>第 1 頁 / 2</span>
+        </div>
+      </div>
+
+      <div class="print-page-2 w-full bg-white">
+        <header class="w-full text-center pt-1 pb-2 border-b-2 border-[#b68938] shrink-0">
+          <div class="text-[10px] uppercase font-display tracking-[0.28em] text-[#b68938] font-bold mb-0.5">VIP GALA BANQUET SEATING DIRECTORY</div>
+          <h1 class="printHeadingTitle text-2xl font-serif font-black tracking-widest text-[#1a2734] my-1">2026 年度盛典尊榮晚宴</h1>
+          <div class="flex items-center justify-center gap-5 text-xs text-slate-700 font-semibold tracking-wide">
+            <span><strong class="text-[#96631b]">日期：</strong><span class="printDateText">2026-10-24</span></span>
+            <span class="text-slate-300">|</span>
+            <span><strong class="text-[#96631b]">時間：</strong><span class="printTimeText">18:30</span></span>
+            <span class="text-slate-300">|</span>
+            <span><strong class="text-[#96631b]">席設：</strong><span class="printVenueText">萬豪尊爵宴會大禮堂</span></span>
+          </div>
+        </header>
+
+        <div class="w-full flex items-center justify-between py-2 border-b border-slate-200 shrink-0">
+          <div class="flex items-center gap-2">
+            <i class="ph-bold ph-address-book text-lg text-[#b68938]"></i>
+            <h2 class="font-serif font-bold text-sm text-slate-900 tracking-wider">主桌賓客席次名冊對照表</h2>
+          </div>
+          <div class="text-xs text-slate-600 font-medium">
+            桌名：<span class="font-bold text-slate-900" id="printTableNameText">主桌 (VIP)</span> | 
+            席位容量：<span class="font-bold text-[#b68938]" id="printSeatCapacityText">共 20 席</span> | 
+            實到人數：<span class="font-bold text-emerald-700" id="printSeatedCountText">8 人</span>
+          </div>
+        </div>
+
+        <div class="flex-1 w-full overflow-hidden pt-2">
+          <table class="w-full border-collapse text-left text-xs">
+            <thead>
+              <tr class="bg-slate-100/90 text-slate-700 border-y border-slate-300" style="font-size:12pt;">
+                <th class="py-2.5 px-3 text-center w-16 font-bold">席次</th>
+                <th class="py-2.5 px-2 text-center w-12 font-bold">色標</th>
+                <th class="py-2.5 px-3 w-36 font-bold">賓客姓名</th>
+                <th class="py-2.5 px-3 font-bold">服務單位 / 身份 / 職稱</th>
+                <th class="py-2.5 px-3 w-40 font-bold">飲食或禮賓備註</th>
+                <th class="py-2.5 px-3 text-center w-24 font-bold">就座狀態</th>
+              </tr>
+            </thead>
+            <tbody id="printDirectoryTableBody" class="divide-y divide-slate-200">
+            </tbody>
+          </table>
+        </div>
+
+        <footer class="w-full flex items-center justify-between text-[9px] text-slate-400 border-t border-slate-200 pt-1.5 pb-1 shrink-0 mt-auto">
+          <span>正式禮賓文件 • 本座次名單經大會確認後生效 • 列印時間：<span id="printTimestamp"></span></span>
+          <span>第 2 頁，共 2 頁</span>
+        </footer>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 彈窗 1：設定主桌名稱與人數 ================= -->
+  <div id="tableModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs hidden items-center justify-center z-50 p-4">
+    <div class="bg-white border border-gala-border rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
+      <div class="p-4 border-b border-gala-border flex items-center justify-between bg-gala-subtle">
+        <h3 class="font-serif font-bold text-base text-gala-primary">設定主桌人數</h3>
+        <button id="btnCloseTableModal" class="text-gala-muted hover:text-gala-text text-lg"><i class="ph ph-x"></i></button>
+      </div>
+      <form id="tableForm" class="p-5 space-y-4 text-xs">
+        <div>
+          <label class="block text-gala-muted mb-1 font-medium">桌名 / 稱謂 <span class="text-rose-500">*</span></label>
+          <input type="text" id="tableNameInput" required value="主桌 (VIP)" class="w-full bg-white border border-gala-border rounded-lg p-2.5 text-gala-text focus:outline-none focus:border-gala-primary font-bold">
+        </div>
+        <div>
+          <label class="block text-gala-muted mb-1 font-medium">席位總數 (4 ~ 24 席)</label>
+          <input type="number" id="tableSeatCountInput" min="4" max="24" value="20" required class="w-full bg-white border border-gala-border rounded-lg p-2.5 text-gala-text focus:outline-none focus:border-gala-primary font-bold text-sm">
+          <p class="text-[11px] text-gala-muted mt-1 leading-normal">系統已優化間距演算法，名牌不會互相重疊遮蔽。</p>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="block text-gala-muted mb-1 font-medium">第 1 席位置</label>
+            <select id="tableStartInput" class="w-full bg-white border border-gala-border rounded-lg p-2.5 text-gala-text focus:outline-none focus:border-gala-primary"><option value="0">正上方</option><option value="45">右上方</option><option value="90">正右方</option><option value="135">右下方</option><option value="180">正下方</option><option value="225">左下方</option><option value="270">正左方</option><option value="315">左上方</option></select></div>
+          <div><label class="block text-gala-muted mb-1 font-medium">席次排列方向</label>
+            <select id="tableDirInput" class="w-full bg-white border border-gala-border rounded-lg p-2.5 text-gala-text focus:outline-none focus:border-gala-primary"><option value="cw">順時針</option><option value="ccw">逆時針</option></select></div>
+        </div>
+        <div class="pt-3 flex justify-end gap-2 border-t border-gala-border">
+          <button type="button" id="btnCancelTable" class="px-4 py-2 text-gala-muted hover:text-gala-text rounded-lg border border-gala-border font-medium">取消</button>
+          <button type="submit" class="px-5 py-2 bg-gala-primary hover:bg-gala-primaryHover text-white font-bold rounded-lg shadow-sm transition">儲存確認</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= 彈窗 2：新增/編輯賓客 ================= -->
+  <div id="guestModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs hidden items-center justify-center z-50 p-4">
+    <div class="bg-white border border-gala-border rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+      <div class="p-4 border-b border-gala-border flex items-center justify-between bg-gala-subtle">
+        <h3 id="guestModalTitle" class="font-serif font-bold text-base text-gala-primary">新增賓客</h3>
+        <button id="btnCloseGuestModal" class="text-gala-muted hover:text-gala-text text-lg"><i class="ph ph-x"></i></button>
+      </div>
+      <form id="guestForm" class="p-5 space-y-4 text-xs">
+        <input type="hidden" id="editGuestId">
+        
+        <div>
+          <label class="block text-gala-muted mb-1 font-medium">賓客姓名 <span class="text-rose-500">*</span></label>
+          <input type="text" id="guestNameInput" required placeholder="例如：李大宗" class="w-full bg-white border border-gala-border rounded-lg p-2.5 text-gala-text focus:outline-none focus:border-gala-primary">
+        </div>
+        
+        <div>
+          <label class="block text-gala-muted mb-1 font-medium">單位 / 身份分類 / 職稱 (名牌第 2 行) <span class="text-rose-500">*</span></label>
+          <input type="text" id="guestTagInput" required list="tagOptions" placeholder="例如：金牌、主辦單位 執行長" class="w-full bg-white border border-gala-border rounded-lg p-2.5 text-gala-text focus:outline-none focus:border-gala-primary">
+          <datalist id="tagOptions">
+            <option value="金牌"></option>
+            <option value="銀牌"></option>
+            <option value="銅牌"></option>
+            <option value="中華奧會"></option>
+            <option value="主辦單位"></option>
+            <option value="全球科技 董事長"></option>
+            <option value="國家智庫 院長"></option>
+          </datalist>
+        </div>
+
+        <div>
+          <label class="block text-gala-muted mb-1.5 font-medium flex items-center justify-between">
+            <span>席位名牌代表色</span>
+            <span class="text-[10px] text-gala-muted">自訂色彩</span>
+          </label>
+          <div class="flex items-center gap-2">
+            <div id="palettePresetContainer" class="flex flex-wrap items-center gap-1.5 flex-1"></div>
+            <div class="relative flex items-center gap-1 border border-gala-border px-2 py-1 rounded-lg bg-gala-subtle shrink-0">
+              <input type="color" id="guestCustomColor" value="#1e3a5f" class="w-6 h-6 rounded cursor-pointer border-0 bg-transparent p-0">
+              <span class="text-[10px] font-mono text-gala-muted" id="guestColorHex">#1e3a5f</span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-gala-muted mb-1 font-medium">飲食與特殊備註</label>
+          <input type="text" id="guestNoteInput" placeholder="例如：素食、致詞嘉賓" class="w-full bg-white border border-gala-border rounded-lg p-2.5 text-gala-text focus:outline-none focus:border-gala-primary">
+        </div>
+
+        <div class="pt-3 flex justify-end gap-2 border-t border-gala-border">
+          <button type="button" id="btnCancelGuest" class="px-4 py-2 text-gala-muted hover:text-gala-text rounded-lg border border-gala-border font-medium">取消</button>
+          <button type="submit" class="px-5 py-2 bg-gala-primary hover:bg-gala-primaryHover text-white font-bold rounded-lg shadow-sm transition">儲存賓客</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= 彈窗 3：Excel 批量匯入 ================= -->
+  <div id="batchModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs hidden items-center justify-center z-50 p-4">
+    <div class="bg-white border border-gala-border rounded-2xl w-full max-w-xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+      <div class="p-4 border-b border-gala-border flex items-center justify-between bg-gala-subtle">
+        <div class="flex items-center gap-2 text-gala-primary">
+          <i class="ph-bold ph-microsoft-excel-logo text-xl text-emerald-600"></i>
+          <h3 class="font-serif font-bold text-base">Excel 批量匯入名單</h3>
+        </div>
+        <button id="btnCloseBatchModal" class="text-gala-muted hover:text-gala-text text-lg"><i class="ph ph-x"></i></button>
+      </div>
+      <div class="p-5 flex-1 overflow-y-auto space-y-3">
+        <p class="text-xs text-gala-muted leading-relaxed">
+          可直接自 Excel 複製後貼入：<br>
+          <code class="text-gala-primary bg-gala-subtle px-1.5 py-0.5 rounded font-mono">姓名 [Tab或逗號] 單位/身份/職稱 [Tab或逗號] 備註</code>
+        </p>
+        <textarea id="batchInput" rows="10" placeholder="蔡家福	中華奧會	貴賓席&#10;李執行長	主辦單位	主辦方致詞&#10;李特聘顧問	國家智庫 院長	素食" class="w-full bg-white border border-gala-border rounded-xl p-3 text-xs font-mono text-gala-text focus:outline-none focus:border-gala-primary leading-5"></textarea>
+        
+        <div class="flex items-center justify-between text-xs text-gala-muted">
+          <span>貼上後點擊確認，席位長條名牌將自動顯示單位。</span>
+          <button id="btnInsertSample" class="text-gala-gold underline hover:opacity-80 font-medium">帶入示範名單</button>
+        </div>
+      </div>
+      <div class="p-4 border-t border-gala-border flex justify-end gap-2 bg-gala-subtle">
+        <button id="btnCancelBatch" class="px-4 py-1.5 text-xs text-gala-muted hover:text-gala-text rounded-lg border border-gala-border font-medium">取消</button>
+        <button id="btnDoBatchImport" class="px-5 py-1.5 text-xs bg-gala-primary hover:bg-gala-primaryHover text-white font-bold rounded-lg shadow transition">確認批量匯入</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 彈窗 4：列印預覽 ================= -->
+  <div id="printPreviewModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+    <div class="bg-white border border-gala-border rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+      <div class="p-4 border-b border-gala-border flex items-center justify-between bg-gala-subtle">
+        <div class="flex items-center gap-2 text-gala-primary">
+          <i class="ph-bold ph-printer text-xl text-amber-600"></i>
+          <h3 class="font-serif font-bold text-base">列印前預覽與選項</h3>
+        </div>
+        <button id="btnClosePrintPreview" class="text-gala-muted hover:text-gala-text text-lg"><i class="ph ph-x"></i></button>
+      </div>
+      <div class="p-5 space-y-4 text-xs">
+        <p class="text-gala-muted leading-relaxed">確認目前座次後，系統將產出 A4 直式雙頁（第1頁平面圖、第2頁名冊）。</p>
+        
+        <div class="bg-gala-subtle rounded-xl p-4 border border-gala-border space-y-3">
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" id="printShowEmptySeats" checked class="w-4 h-4 rounded border-gala-border text-gala-primary focus:ring-gala-gold">
+            <div>
+              <div class="font-bold text-gala-text">平面圖顯示空席</div>
+              <div class="text-[11px] text-gala-muted mt-0.5">取消勾選則只顯示已入座賓客名牌，畫面更簡潔</div>
+            </div>
+          </label>
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" id="printShowEmptyInDirectory" checked class="w-4 h-4 rounded border-gala-border text-gala-primary focus:ring-gala-gold">
+            <div>
+              <div class="font-bold text-gala-text">名冊表顯示空席列</div>
+              <div class="text-[11px] text-gala-muted mt-0.5">取消勾選則第2頁只列出已就座賓客</div>
+            </div>
+          </label>
+        </div>
+
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-900">
+          <div class="font-bold mb-1 flex items-center gap-1.5"><i class="ph-bold ph-info"></i> 目前統計</div>
+          <div id="printPreviewStats" class="text-[11px] leading-relaxed"></div>
+        </div>
+      </div>
+      <div class="p-4 border-t border-gala-border flex justify-end gap-2 bg-gala-subtle">
+        <button id="btnCancelPrintPreview" class="px-4 py-2 text-xs text-gala-muted hover:text-gala-text rounded-lg border border-gala-border font-medium">取消</button>
+        <button id="btnConfirmPrint" class="px-5 py-2 text-xs bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-bold rounded-lg shadow transition flex items-center gap-1.5">
+          <i class="ph-bold ph-printer"></i> 確認列印
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 提示浮層 (Toast) -->
+  <div id="toast" class="fixed bottom-6 right-6 bg-white border border-gala-gold text-gala-primary px-4 py-3 rounded-xl shadow-xl text-xs flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-300 z-50 pointer-events-none">
+    <i class="ph-fill ph-check-circle text-gala-gold text-lg"></i>
+    <span id="toastMsg" class="font-medium">提示訊息</span>
+  </div>
+
+  <!-- ================= JAVASCRIPT 核心邏輯 ================= -->
+  <script>
+    const PRESET_COLORS = [
+      '#1b3a5b', '#b68434', '#8c2635', '#1c7a4d',
+      '#216b8c', '#563878', '#c26d21', '#475569'
+    ];
+
+    // 智能排位優先權關鍵字（分數越高越優先靠近第1席）
+    const PRIORITY_KEYWORDS = [
+      { kw: ['金牌', '主辦', '執行長', '董事長', '會長', '院長', '總裁'], score: 100 },
+      { kw: ['銀牌', '貴賓', '致詞', '頒獎'], score: 70 },
+      { kw: ['銅牌', '理事', '顧問'], score: 40 },
+      { kw: ['素食'], score: 10 }
+    ];
+
+    let appState = {
+      event: {
+        title: "2026 年度盛典尊榮晚宴",
+        date: "2026-10-24",
+        time: "18:30",
+        venue: "萬豪尊爵宴會大禮堂"
+      },
+      decor: {
+        stage: { visible: true, x: 500, y: 30 },
+        entrance: { visible: true, x: 515, y: 1100 }
+      },
+      table: {
+        name: "主桌 (VIP)",
+        seatCount: 20,
+        x: 380,
+        y: 160,
+        seats: {},
+        startAngle: 0,
+        direction: 'cw'
+      },
+      guests: [],
+      filter: {
+        status: 'unseated',
+        tag: 'ALL',
+        search: ''
+      }
+    };
+
+    // 多選狀態
+    let selectedGuestIds = new Set();
+    let lastClickedGuestId = null;
+
+    const STORAGE_KEY = 'gala_vip_seating_planner_v12';
+
+    window.addEventListener('DOMContentLoaded', () => {
+      if (!loadFromStorage()) initDefaultData();
+      buildPalettePresets();
+      initEventListeners();
+      renderAll();
+    });
+
+    function initDefaultData() {
+      appState.decor = {
+        stage: { visible: true, side: 'top' },
+        entrance: { visible: true, side: 'bottom' }
+      };
+
+      appState.table = {
+        name: "主桌 (VIP)",
+        seatCount: 20,
+        x: 380,
+        y: 160,
+        seats: {
+          0: 'g_1',
+          1: 'g_2',
+          2: 'g_3',
+          6: 'g_4',
+          16: 'g_5',
+          17: 'g_6',
+          18: 'g_7',
+          19: 'g_8'
+        },
+        startAngle: 0,
+        direction: 'cw'
+      };
+
+      appState.guests = [
+        { id: 'g_1', name: '蔡家福', tag: '中華奧會', color: '#1b3a5b', note: '貴賓席' },
+        { id: 'g_2', name: '李執行長', tag: '主辦單位', color: '#b68434', note: '主辦方致詞' },
+        { id: 'g_3', name: '陳大名', tag: '銀牌', color: '#8c2635', note: '頒獎嘉賓' },
+        { id: 'g_4', name: '李特聘顧問', tag: '國家智庫 院長', color: '#1b3a5b', note: '素食' },
+        { id: 'g_5', name: '林常務理事', tag: '產經策進會', color: '#216b8c', note: '' },
+        { id: 'g_6', name: '李大宗', tag: '銅牌', color: '#8c2635', note: '' },
+        { id: 'g_7', name: '張總裁', tag: '全球科技 董事長', color: '#1b3a5b', note: '' },
+        { id: 'g_8', name: '王大頭', tag: '金牌', color: '#8c2635', note: '致詞代表' }
+      ];
+
+      saveToStorage();
+    }
+
+    function calculateSafeRadius(seatCount, pillW = 122) {
+      const minArcDistance = pillW + 16;
+      const mathRadius = (seatCount * minArcDistance) / (2 * Math.PI);
+      return Math.max(180, Math.ceil(mathRadius));
+    }
+
+    function renderAll() {
+      document.getElementById('eventTitle').value = appState.event.title;
+      document.getElementById('eventDate').value = appState.event.date;
+      document.getElementById('eventTime').value = appState.event.time;
+      document.getElementById('eventVenue').value = appState.event.venue;
+
+      renderDecorElements();
+      renderInteractiveTable();
+      renderGuestList();
+      updateStats();
+      updateTagDropdown();
+      updateSelectionUI();
+    }
+
+    function tableStart() { return Number(appState.table.startAngle) || 0; }
+    function tableDir() { return appState.table.direction === 'ccw' ? -1 : 1; }
+    function seatAngle(i, n) { return tableDir() * (2 * Math.PI / n) * i + tableStart() * Math.PI / 180 - Math.PI / 2; }
+    function getDecorSide(key) {
+      const d = appState.decor && appState.decor[key];
+      const def = key === 'stage' ? 'top' : 'bottom';
+      if (!d) return def;
+      if (d.visible === false) return 'none';
+      return d.side || def;
+    }
+    function setDecorSide(key, side) {
+      if (!appState.decor[key]) appState.decor[key] = {};
+      if (side === 'none') { appState.decor[key].visible = false; }
+      else { appState.decor[key].visible = true; appState.decor[key].side = side; }
+    }
+    const tableBox = { size: 0 };
+    function renderDecorElements() {
+      document.getElementById('stageSide').value = getDecorSide('stage');
+      document.getElementById('entranceSide').value = getDecorSide('entrance');
+      placeDecor();
+    }
+    function placeDecor() {
+      if (!tableBox.size) return;
+      const t = appState.table;
+      const items = [['stage', 'stageElement', 280], ['entrance', 'entranceElement', 250]];
+      const sides = {};
+      items.forEach(([key, id, len]) => {
+        const el = document.getElementById(id);
+        const side = sides[key] = getDecorSide(key);
+        if (side === 'none') { el.classList.add('hidden'); return; }
+        el.classList.remove('hidden');
+        const v = side === 'left' || side === 'right';
+        el.style.writingMode = v ? 'vertical-rl' : '';
+        el.style.width = v ? 'auto' : `${len}px`;
+        el.style.height = v ? `${len}px` : '';
+      });
+      const holder = document.getElementById('tablesContainer');
+      const S = tableBox.size, cx = holder.offsetLeft + t.x + S / 2, cy = holder.offsetTop + t.y + S / 2;
+      const left = holder.offsetLeft + t.x, top = holder.offsetTop + t.y;
+      items.forEach(([key, id]) => {
+        const side = sides[key]; if (side === 'none') return;
+        const el = document.getElementById(id);
+        const w = el.offsetWidth, h = el.offsetHeight;
+        const other = key === 'stage' ? 'entrance' : 'stage';
+        const horiz = side === 'top' || side === 'bottom';
+        const shift = sides[other] === side ? (key === 'stage' ? -1 : 1) * ((horiz ? w : h) / 2 + 8) : 0;
+        let x, y;
+        if (side === 'top') { x = cx - w / 2 + shift; y = top - h - 8; }
+        else if (side === 'bottom') { x = cx - w / 2 + shift; y = top + S + 8; }
+        else if (side === 'left') { x = left - w - 8; y = cy - h / 2 + shift; }
+        else { x = left + S + 8; y = cy - h / 2 + shift; }
+        el.style.left = `${Math.max(10, x)}px`; el.style.top = `${Math.max(10, y)}px`;
+      });
+    }
+
+    function renderInteractiveTable() {
+      const container = document.getElementById('tablesContainer');
+      container.innerHTML = '';
+
+      const table = appState.table;
+      const seatCount = table.seatCount;
+      const pillWidth = 122;
+      const pillHeight = 56;
+
+      const radius = calculateSafeRadius(seatCount, pillWidth);
+      const boxSize = (radius + pillWidth / 2 + 40) * 2;
+      tableBox.size = boxSize;
+
+      const tableCard = document.createElement('div');
+      tableCard.className = 'table-entity absolute select-none flex items-center justify-center transition-shadow group';
+      tableCard.style.width = `${boxSize}px`;
+      tableCard.style.height = `${boxSize}px`;
+      tableCard.style.left = `${table.x}px`;
+      tableCard.style.top = `${table.y}px`;
+
+      const centerX = boxSize / 2;
+      const centerY = boxSize / 2;
+
+      const innerDiameter = Math.min(220, Math.max(160, radius * 0.9));
+      const centerCore = document.createElement('div');
+      centerCore.className = 'absolute rounded-full bg-white border-4 border-[#b68434] flex flex-col items-center justify-center text-center shadow-lg cursor-grab active:cursor-grabbing hover:border-amber-600 transition z-10';
+      centerCore.style.width = `${innerDiameter}px`;
+      centerCore.style.height = `${innerDiameter}px`;
+      centerCore.style.left = `${centerX - innerDiameter / 2}px`;
+      centerCore.style.top = `${centerY - innerDiameter / 2}px`;
+
+      const seatedNow = Object.keys(table.seats).filter(k => table.seats[k]).length;
+      centerCore.innerHTML = `
+        <div class="font-serif font-black text-xl text-[#1a2734] tracking-wider px-2 truncate max-w-[170px]">${table.name}</div>
+        <div class="text-xs text-[#b68434] font-bold mt-1 font-sans">共 ${seatCount} 席 · 已入 ${seatedNow}</div>
+        <div class="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 mt-2 no-print">
+          <button class="btn-seat-minus w-6 h-6 rounded-full bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-600 flex items-center justify-center text-xs font-bold transition" title="減少1座席">-</button>
+          <button class="btn-edit-tbl px-2 py-0.5 rounded bg-gala-subtle hover:bg-slate-200 text-gala-primary text-[11px] font-medium border border-gala-border" title="編輯桌名與人數">人數</button>
+          <button class="btn-seat-plus w-6 h-6 rounded-full bg-slate-100 hover:bg-emerald-100 text-slate-600 hover:text-emerald-600 flex items-center justify-center text-xs font-bold transition" title="增加1座席">+</button>
+        </div>
+      `;
+
+      setupTableDrag(centerCore, table);
+
+      centerCore.querySelector('.btn-seat-minus').addEventListener('click', (e) => {
+        e.stopPropagation();
+        changeSeatCount(-1);
+      });
+      centerCore.querySelector('.btn-seat-plus').addEventListener('click', (e) => {
+        e.stopPropagation();
+        changeSeatCount(1);
+      });
+      centerCore.querySelector('.btn-edit-tbl').addEventListener('click', (e) => {
+        e.stopPropagation();
+        openTableConfigModal();
+      });
+
+      tableCard.appendChild(centerCore);
+
+      for (let i = 0; i < seatCount; i++) {
+        const angle = seatAngle(i, seatCount);
+        const seatX = centerX + radius * Math.cos(angle);
+        const seatY = centerY + radius * Math.sin(angle);
+
+        const seatNode = document.createElement('div');
+        seatNode.id = `seat_node_${i}`;
+        seatNode.dataset.seatIndex = i;
+        seatNode.style.width = `${pillWidth}px`;
+        seatNode.style.height = `${pillHeight}px`;
+        seatNode.style.left = `${seatX}px`;
+        seatNode.style.top = `${seatY}px`;
+        seatNode.style.transform = 'translate(-50%, -50%)';
+
+        const guestId = table.seats[i];
+        const guest = guestId ? appState.guests.find(g => g.id === guestId) : null;
+
+        if (guest) {
+          const bgColor = guest.color || '#1b3a5b';
+          const txtColor = getContrastTextColor(bgColor);
+
+          seatNode.className = 'seat-node absolute rounded-xl px-2.5 py-1.5 flex flex-col justify-center text-left shadow-md cursor-grab active:cursor-grabbing hover:scale-105 transition-all z-20 group/seat border border-white/60 overflow-hidden';
+          seatNode.style.backgroundColor = bgColor;
+          seatNode.style.color = txtColor;
+          seatNode.setAttribute('draggable', 'true');
+
+          seatNode.innerHTML = `
+            <div class="flex items-center justify-between w-full" style="line-height:1.15;">
+              <span class="font-bold truncate" style="font-size:13px;max-width:88px;">${guest.name}</span>
+              <span class="opacity-80 font-mono shrink-0" style="font-size:11px;">${i + 1}</span>
+            </div>
+            <div class="opacity-90 truncate" style="font-size:11px;line-height:1.2;margin-top:2px;" title="${guest.tag || ''}">${guest.tag || '貴賓'}</div>
+            <button class="btn-unseat-single absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-600 hover:bg-rose-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover/seat:opacity-100 transition no-print shadow" title="請起回名冊">✕</button>
+          `;
+
+          seatNode.addEventListener('dragstart', (e) => handleSeatDragStart(e, i, guest.id));
+          seatNode.querySelector('.btn-unseat-single').addEventListener('click', (e) => {
+            e.stopPropagation();
+            unseatSeat(i);
+          });
+        } else {
+          seatNode.className = 'seat-node absolute rounded-xl bg-white/95 border border-dashed border-[#b8c9d9] px-2.5 py-1.5 flex items-center justify-between text-[#59738c] text-xs hover:border-gala-primary hover:bg-white transition cursor-pointer z-10 shadow-2xs';
+          seatNode.innerHTML = `
+            <span class="font-medium text-sm">第 ${i + 1} 席</span>
+            <span class="opacity-70 text-xs">空席</span>
+          `;
+        }
+
+        setupSeatDropTarget(seatNode, i);
+        tableCard.appendChild(seatNode);
+      }
+
+      container.appendChild(tableCard);
+      placeDecor();
+    }
+
+    function renderGuestList() {
+      const container = document.getElementById('guestListContainer');
+      container.innerHTML = '';
+
+      const seatedGuestIds = new Set(Object.values(appState.table.seats).filter(Boolean));
+
+      const filtered = appState.guests.filter(guest => {
+        const isSeated = seatedGuestIds.has(guest.id);
+        if (appState.filter.status === 'unseated' && isSeated) return false;
+        if (appState.filter.status === 'seated' && !isSeated) return false;
+        if (appState.filter.tag !== 'ALL' && guest.tag !== appState.filter.tag) return false;
+
+        if (appState.filter.search) {
+          const q = appState.filter.search.toLowerCase();
+          const matchName = guest.name.toLowerCase().includes(q);
+          const matchTag = (guest.tag || '').toLowerCase().includes(q);
+          const matchNote = (guest.note || '').toLowerCase().includes(q);
+          if (!matchName && !matchTag && !matchNote) return false;
+        }
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="h-40 flex flex-col items-center justify-center text-gala-muted text-xs">
+            <i class="ph ph-user-circle-dashed text-3xl mb-1 text-slate-300"></i>
+            <span>尚無符合條件的賓客</span>
+          </div>
+        `;
+        return;
+      }
+
+      filtered.forEach(guest => {
+        const isSeated = seatedGuestIds.has(guest.id);
+        const guestColor = guest.color || '#1b3a5b';
+        const isSelected = selectedGuestIds.has(guest.id);
+
+        const card = document.createElement('div');
+        card.className = `p-3.5 rounded-xl border border-gala-border ${isSeated ? 'bg-slate-50 opacity-75' : 'bg-white hover:border-gala-primary hover:shadow-xs'} flex items-center justify-between gap-2 transition cursor-grab active:cursor-grabbing ${isSelected ? 'guest-card-selected' : ''}`;
+        card.draggable = true;
+        card.dataset.guestId = guest.id;
+
+        let seatInfoText = '未入座';
+        if (isSeated) {
+          for (const [sIndex, gid] of Object.entries(appState.table.seats)) {
+            if (gid === guest.id) {
+              seatInfoText = `第 ${parseInt(sIndex) + 1} 席`;
+              break;
+            }
+          }
+        }
+
+        card.innerHTML = `
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div class="w-4 h-9 rounded-md border border-white shadow-2xs shrink-0" style="background-color: ${guestColor};"></div>
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5">
+                <span class="font-bold text-sm text-gala-text truncate">${guest.name}</span>
+                ${guest.tag ? `<span class="px-1.5 py-0.5 text-xs rounded font-medium bg-gala-subtle text-gala-primary border border-gala-border truncate max-w-[140px]">${guest.tag}</span>` : ''}
+              </div>
+              <div class="text-xs text-gala-muted truncate flex items-center gap-1 mt-0.5">
+                <span class="${isSeated ? 'text-amber-800 font-bold' : ''}">${seatInfoText}</span>
+                ${guest.note ? `<span>• ${guest.note}</span>` : ''}
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-1 shrink-0 no-print">
+            ${isSeated ? `
+              <button class="btn-card-unseat p-1 hover:text-rose-600 text-gala-muted text-xs" title="起立移回未入座">
+                <i class="ph-bold ph-arrow-u-up-left"></i>
+              </button>
+            ` : ''}
+            <button class="btn-card-edit p-1 hover:text-gala-primary text-gala-muted text-xs" title="編輯賓客">
+              <i class="ph-bold ph-pencil-simple"></i>
+            </button>
+            <button class="btn-card-del p-1 hover:text-rose-600 text-gala-muted text-xs" title="刪除">
+              <i class="ph-bold ph-trash"></i>
+            </button>
+          </div>
+        `;
+
+        // 點擊選取（支援 Ctrl / Cmd 多選、Shift 範圍）
+        card.addEventListener('click', (e) => {
+          if (e.target.closest('button')) return;
+          handleGuestCardClick(guest.id, e);
+        });
+
+        card.addEventListener('dragstart', (e) => {
+          // 若目前有多選且包含此賓客，則拖曳整組
+          let idsToDrag = [];
+          if (selectedGuestIds.has(guest.id) && selectedGuestIds.size > 1) {
+            idsToDrag = Array.from(selectedGuestIds);
+          } else {
+            idsToDrag = [guest.id];
+            // 單選時也更新選取狀態
+            selectedGuestIds.clear();
+            selectedGuestIds.add(guest.id);
+            updateSelectionUI();
+            renderGuestList();
+          }
+          e.dataTransfer.setData('text/plain', JSON.stringify({
+            source: 'guest_list',
+            guestIds: idsToDrag
+          }));
+          card.classList.add('opacity-40');
+        });
+        card.addEventListener('dragend', () => {
+          card.classList.remove('opacity-40');
+        });
+
+        card.querySelector('.btn-card-edit').addEventListener('click', (e) => {
+          e.stopPropagation();
+          openGuestModal(guest.id);
+        });
+        card.querySelector('.btn-card-del').addEventListener('click', (e) => {
+          e.stopPropagation();
+          deleteGuest(guest.id);
+        });
+        const unseatBtn = card.querySelector('.btn-card-unseat');
+        if (unseatBtn) {
+          unseatBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            unseatGuestGlobally(guest.id);
+          });
+        }
+
+        container.appendChild(card);
+      });
+    }
+
+    function handleGuestCardClick(guestId, e) {
+      const isCtrl = e.ctrlKey || e.metaKey;
+      const isShift = e.shiftKey;
+
+      if (isCtrl) {
+        if (selectedGuestIds.has(guestId)) {
+          selectedGuestIds.delete(guestId);
+        } else {
+          selectedGuestIds.add(guestId);
+        }
+        lastClickedGuestId = guestId;
+      } else if (isShift && lastClickedGuestId) {
+        const allIds = appState.guests.map(g => g.id);
+        const start = allIds.indexOf(lastClickedGuestId);
+        const end = allIds.indexOf(guestId);
+        if (start !== -1 && end !== -1) {
+          const [from, to] = start < end ? [start, end] : [end, start];
+          for (let i = from; i <= to; i++) {
+            selectedGuestIds.add(allIds[i]);
+          }
+        }
+      } else {
+        selectedGuestIds.clear();
+        selectedGuestIds.add(guestId);
+        lastClickedGuestId = guestId;
+      }
+      updateSelectionUI();
+      renderGuestList();
+    }
+
+    function updateSelectionUI() {
+      const badge = document.getElementById('selectedCountBadge');
+      const clearBtn = document.getElementById('btnClearSelection');
+      if (selectedGuestIds.size > 0) {
+        badge.textContent = `已選 ${selectedGuestIds.size} 人`;
+        badge.classList.remove('hidden');
+        clearBtn.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+        clearBtn.classList.add('hidden');
+      }
+    }
+
+    // 拖曳至側邊欄歸位
+    const sidebar = document.getElementById('sidebar');
+    sidebar.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      sidebar.classList.add('border-rose-400');
+    });
+    sidebar.addEventListener('dragleave', () => sidebar.classList.remove('border-rose-400'));
+    sidebar.addEventListener('drop', (e) => {
+      e.preventDefault();
+      sidebar.classList.remove('border-rose-400');
+      try {
+        const raw = e.dataTransfer.getData('text/plain');
+        if (!raw) return;
+        const data = JSON.parse(raw);
+        if (data.source === 'table_seat') {
+          unseatSeat(data.fromSeatIndex);
+          showToast(`賓客已移回未入座名冊`);
+        }
+      } catch (err) {}
+    });
+
+    function handleSeatDragStart(e, seatIndex, guestId) {
+      e.stopPropagation();
+      e.dataTransfer.setData('text/plain', JSON.stringify({
+        source: 'table_seat',
+        fromSeatIndex: seatIndex,
+        guestId: guestId
+      }));
+    }
+
+    function setupSeatDropTarget(seatElement, targetSeatIndex) {
+      seatElement.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        seatElement.classList.add('seat-drop-hover');
+      });
+
+      seatElement.addEventListener('dragleave', (e) => {
+        e.stopPropagation();
+        seatElement.classList.remove('seat-drop-hover');
+      });
+
+      seatElement.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        seatElement.classList.remove('seat-drop-hover');
+
+        try {
+          const raw = e.dataTransfer.getData('text/plain');
+          if (!raw) return;
+          const data = JSON.parse(raw);
+
+          const currentOccupantId = appState.table.seats[targetSeatIndex] || null;
+
+          if (data.source === 'guest_list') {
+            const ids = data.guestIds || [data.guestId];
+            if (ids.length === 1) {
+              clearGuestFromSeats(ids[0]);
+              appState.table.seats[targetSeatIndex] = ids[0];
+              showToast(`已安排就座至第 ${targetSeatIndex + 1} 席`);
+            } else {
+              // 多選：從目標席開始依序填入空席（或覆蓋）
+              let placed = 0;
+              let seatIdx = targetSeatIndex;
+              for (const gid of ids) {
+                // 找下一個可用席（優先空席，若沒有則往後覆蓋）
+                while (seatIdx < appState.table.seatCount && appState.table.seats[seatIdx] && !ids.includes(appState.table.seats[seatIdx])) {
+                  // 若目前席已被其他人佔用且不是本次拖曳組內，跳過找空席
+                  seatIdx++;
+                }
+                if (seatIdx >= appState.table.seatCount) break;
+                clearGuestFromSeats(gid);
+                appState.table.seats[seatIdx] = gid;
+                placed++;
+                seatIdx++;
+              }
+              showToast(`已安排 ${placed} 位賓客入座（自第 ${targetSeatIndex + 1} 席起）`);
+            }
+            selectedGuestIds.clear();
+          } else if (data.source === 'table_seat') {
+            appState.table.seats[data.fromSeatIndex] = currentOccupantId;
+            appState.table.seats[targetSeatIndex] = data.guestId;
+            showToast(currentOccupantId ? '兩位席位已對調' : `已移動至第 ${targetSeatIndex + 1} 席`);
+          }
+
+          saveToStorage();
+          renderAll();
+        } catch (err) {}
+      });
+    }
+
+    function clearGuestFromSeats(guestId) {
+      for (const idx in appState.table.seats) {
+        if (appState.table.seats[idx] === guestId) {
+          delete appState.table.seats[idx];
+        }
+      }
+    }
+
+    function unseatSeat(seatIndex) {
+      if (appState.table.seats[seatIndex]) {
+        delete appState.table.seats[seatIndex];
+        saveToStorage();
+        renderAll();
+      }
+    }
+
+    function unseatGuestGlobally(guestId) {
+      clearGuestFromSeats(guestId);
+      selectedGuestIds.delete(guestId);
+      saveToStorage();
+      renderAll();
+      showToast('賓客已歸位');
+    }
+
+    function setupTableDrag(handleElement, table) {
+      let isDragging = false;
+      let startMouseX = 0, startMouseY = 0;
+      let initialTableX = 0, initialTableY = 0;
+
+      handleElement.addEventListener('mousedown', (e) => {
+        if (e.target.closest('button')) return;
+        isDragging = true;
+        startMouseX = e.clientX;
+        startMouseY = e.clientY;
+        initialTableX = table.x;
+        initialTableY = table.y;
+
+        const tableCard = handleElement.parentElement;
+        tableCard.classList.add('table-dragging');
+
+        function onMouseMove(ev) {
+          if (!isDragging) return;
+          table.x = Math.max(10, initialTableX + (ev.clientX - startMouseX));
+          table.y = Math.max(10, initialTableY + (ev.clientY - startMouseY));
+          tableCard.style.left = `${table.x}px`;
+          tableCard.style.top = `${table.y}px`;
+          placeDecor();
+        }
+
+        function onMouseUp() {
+          if (isDragging) {
+            isDragging = false;
+            tableCard.classList.remove('table-dragging');
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            saveToStorage();
+          }
+        }
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+      });
+    }
+
+    // ================= 智能一鍵排位 =================
+    function getGuestPriority(guest) {
+      let score = 0;
+      const text = ((guest.tag || '') + ' ' + (guest.note || '') + ' ' + (guest.name || '')).toLowerCase();
+      PRIORITY_KEYWORDS.forEach(item => {
+        item.kw.forEach(k => {
+          if (text.includes(k.toLowerCase())) score = Math.max(score, item.score);
+        });
+      });
+      return score;
+    }
+
+    function smartAutoSeat() {
+      const seatedIds = new Set(Object.values(appState.table.seats).filter(Boolean));
+      const unseated = appState.guests.filter(g => !seatedIds.has(g.id));
+
+      if (unseated.length === 0) {
+        showToast('目前沒有未入座的賓客');
+        return;
+      }
+
+      // 依優先權排序（高分在前），同分維持原順序
+      unseated.sort((a, b) => getGuestPriority(b) - getGuestPriority(a));
+
+      // 找出所有空席，從第 0 席開始依序填入
+      const emptySeats = [];
+      for (let i = 0; i < appState.table.seatCount; i++) {
+        if (!appState.table.seats[i]) emptySeats.push(i);
+      }
+
+      if (emptySeats.length === 0) {
+        showToast('已無空席可安排');
+        return;
+      }
+
+      const toPlace = Math.min(unseated.length, emptySeats.length);
+      for (let i = 0; i < toPlace; i++) {
+        appState.table.seats[emptySeats[i]] = unseated[i].id;
+      }
+
+      selectedGuestIds.clear();
+      saveToStorage();
+      renderAll();
+      showToast(`智能排位完成：已安排 ${toPlace} 位賓客（優先身份靠近第 1 席）`);
+    }
+
+    function openTableConfigModal() {
+      document.getElementById('tableNameInput').value = appState.table.name;
+      document.getElementById('tableSeatCountInput').value = appState.table.seatCount;
+      document.getElementById('tableStartInput').value = String(tableStart());
+      document.getElementById('tableDirInput').value = tableDir() === 1 ? 'cw' : 'ccw';
+      const modal = document.getElementById('tableModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeTableConfigModal() {
+      const modal = document.getElementById('tableModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function changeSeatCount(delta) {
+      const target = appState.table.seatCount + delta;
+      if (target < 4) {
+        showToast('最少需有 4 個席位');
+        return;
+      }
+      if (target > 24) {
+        showToast('單桌上限為 24 席');
+        return;
+      }
+
+      if (delta < 0 && appState.table.seats[appState.table.seatCount - 1]) {
+        delete appState.table.seats[appState.table.seatCount - 1];
+      }
+
+      appState.table.seatCount = target;
+      saveToStorage();
+      renderAll();
+    }
+
+    function buildPalettePresets() {
+      const container = document.getElementById('palettePresetContainer');
+      container.innerHTML = '';
+      PRESET_COLORS.forEach(color => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'w-6 h-6 rounded-full border border-slate-300 hover:scale-115 transition shadow-2xs';
+        btn.style.backgroundColor = color;
+        btn.addEventListener('click', () => setGuestModalColor(color));
+        container.appendChild(btn);
+      });
+    }
+
+    function setGuestModalColor(hex) {
+      document.getElementById('guestCustomColor').value = hex;
+      document.getElementById('guestColorHex').textContent = hex;
+    }
+
+    function openGuestModal(guestId = null) {
+      const modal = document.getElementById('guestModal');
+      const form = document.getElementById('guestForm');
+      form.reset();
+
+      if (guestId) {
+        const guest = appState.guests.find(g => g.id === guestId);
+        if (guest) {
+          document.getElementById('guestModalTitle').textContent = '編輯賓客資料';
+          document.getElementById('editGuestId').value = guest.id;
+          document.getElementById('guestNameInput').value = guest.name;
+          document.getElementById('guestTagInput').value = guest.tag || '';
+          document.getElementById('guestNoteInput').value = guest.note || '';
+          setGuestModalColor(guest.color || '#1b3a5b');
+        }
+      } else {
+        document.getElementById('guestModalTitle').textContent = '新增賓客';
+        document.getElementById('editGuestId').value = '';
+        const randomColor = PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)];
+        setGuestModalColor(randomColor);
+      }
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      document.getElementById('guestNameInput').focus();
+    }
+
+    function closeGuestModal() {
+      const modal = document.getElementById('guestModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function deleteGuest(guestId) {
+      const guest = appState.guests.find(g => g.id === guestId);
+      const name = guest ? guest.name : '此賓客';
+      const overlay = createConfirmDialog(`確定要從名冊中刪除「${name}」嗎？`, () => {
+        clearGuestFromSeats(guestId);
+        appState.guests = appState.guests.filter(g => g.id !== guestId);
+        selectedGuestIds.delete(guestId);
+        saveToStorage();
+        renderAll();
+        showToast('賓客已刪除');
+      });
+      document.body.appendChild(overlay);
+    }
+
+    function getContrastTextColor(hexColor) {
+      let c = hexColor.replace('#', '');
+      if (c.length === 3) c = c.split('').map(x => x + x).join('');
+      const r = parseInt(c.substr(0, 2), 16) || 0;
+      const g = parseInt(c.substr(2, 2), 16) || 0;
+      const b = parseInt(c.substr(4, 2), 16) || 0;
+      const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+      return yiq >= 142 ? '#14202d' : '#ffffff';
+    }
+
+    function parseBatchInput(text) {
+      const lines = text.split('\n');
+      const imported = [];
+      lines.forEach((line) => {
+        const clean = line.trim();
+        if (!clean) return;
+
+        let parts = clean.includes('\t') ? clean.split('\t') : clean.split(',');
+        if (parts.length === 1 && clean.includes(' ')) {
+          parts = clean.split(/\s+/);
+        }
+
+        const name = parts[0] ? parts[0].trim() : '';
+        const tag = parts[1] ? parts[1].trim() : '貴賓代表';
+        const note = parts[2] ? parts[2].trim() : '';
+
+        let hash = 0;
+        for (let i = 0; i < tag.length; i++) hash = tag.charCodeAt(i) + ((hash << 5) - hash);
+        const assignedColor = PRESET_COLORS[Math.abs(hash) % PRESET_COLORS.length];
+
+        if (name) {
+          imported.push({
+            id: `g_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            name,
+            tag,
+            color: assignedColor,
+            note
+          });
+        }
+      });
+      return imported;
+    }
+
+    function updateStats() {
+      const totalCapacity = appState.table.seatCount;
+      const seatedCount = Object.keys(appState.table.seats).filter(k => appState.table.seats[k]).length;
+      const totalGuests = appState.guests.length;
+      const unseatedCount = Math.max(0, totalGuests - seatedCount);
+
+      document.getElementById('statSeated').textContent = seatedCount;
+      document.getElementById('statSeatCapacity').textContent = totalCapacity;
+      document.getElementById('countSeated').textContent = seatedCount;
+      document.getElementById('countUnseated').textContent = unseatedCount;
+      document.getElementById('countAll').textContent = totalGuests;
+    }
+
+    function updateTagDropdown() {
+      const select = document.getElementById('tagFilter');
+      const currentVal = appState.filter.tag;
+      const tags = new Set();
+      appState.guests.forEach(g => { if (g.tag) tags.add(g.tag); });
+
+      select.innerHTML = '<option value="ALL">全部單位</option>';
+      tags.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t;
+        opt.textContent = t;
+        if (t === currentVal) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    function exportProjectJSON() {
+      const dataStr = JSON.stringify(appState, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `${appState.event.title}_主桌排座檔.json`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('專案備份檔 (.json) 已下載！');
+    }
+
+    function loadProjectJSON(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (!parsed.event || !parsed.table || !parsed.guests) {
+            throw new Error('格式不相符');
+          }
+          appState = parsed;
+          selectedGuestIds.clear();
+          saveToStorage();
+          renderAll();
+          showToast(`已成功載入「${appState.event.title}」！`);
+        } catch (err) {
+          showToast('載入失敗：檔案損毀或非本系統 JSON 專案檔');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function exportToCSV() {
+      if (appState.guests.length === 0) {
+        showToast('名冊尚無賓客資料');
+        return;
+      }
+
+      let csv = '\uFEFF';
+      csv += `晚宴名稱,${appState.event.title}\n`;
+      csv += `宴席時間,${appState.event.date} ${appState.event.time}\n`;
+      csv += `會場地點,${appState.event.venue}\n\n`;
+      csv += '席次編號,姓名,單位/身份/職稱,飲食備註,就座狀態\n';
+
+      for (let i = 0; i < appState.table.seatCount; i++) {
+        const guestId = appState.table.seats[i];
+        const guest = guestId ? appState.guests.find(g => g.id === guestId) : null;
+        if (guest) {
+          csv += `第 ${i + 1} 席,"${guest.name}","${guest.tag || ''}","${guest.note || ''}",已就座\n`;
+        } else {
+          csv += `第 ${i + 1} 席,（空席）,-,-,空席\n`;
+        }
+      }
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `${appState.event.title}_主桌名冊.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('名冊 CSV 下載已完成');
+    }
+
+    // ================= 列印預覽 + 正式列印 =================
+    function openPrintPreview() {
+      const seatedCount = Object.keys(appState.table.seats).filter(k => appState.table.seats[k]).length;
+      const emptyCount = appState.table.seatCount - seatedCount;
+      document.getElementById('printPreviewStats').innerHTML = `
+        桌名：<strong>${appState.table.name}</strong><br>
+        總席位：${appState.table.seatCount}　已入座：${seatedCount}　空席：${emptyCount}<br>
+        名冊總人數：${appState.guests.length}
+      `;
+      const modal = document.getElementById('printPreviewModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closePrintPreview() {
+      const modal = document.getElementById('printPreviewModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    // 字寬估算：中日韓字元算 1 個字寬，英數約 0.55
+    function tw(str) { let w = 0; for (const ch of String(str || '')) w += ch.charCodeAt(0) >= 0x2E80 ? 1 : 0.55; return w; }
+
+    // 列印用：沿橢圓排列名牌，依位置自動調整間距，確保名牌不重疊
+    function computeRingPoints(n, Rx, Ry, W, H, g, startRad, dir) {
+      const TWO = 2 * Math.PI;
+      const E = 2 / 2.8; // 近似圓角方形的超橢圓，比正橢圓更能利用頁面四角
+      const sg = v => (v < 0 ? -1 : 1) * Math.pow(Math.abs(v), E);
+      const P = u => ({ x: Rx * sg(Math.sin(u)), y: -Ry * sg(Math.cos(u)) });
+      const clash = (a, b) => Math.abs(a.x - b.x) < W + g && Math.abs(a.y - b.y) < H + g;
+      const minStep = u => {
+        const a = P(u);
+        for (let d = 0.004; d < Math.PI; d += 0.004) if (!clash(a, P(u + dir * d))) return d;
+        return Math.PI;
+      };
+      const walk = extra => {
+        const us = [startRad];
+        for (let i = 1; i <= n; i++) us.push(us[i - 1] + dir * (minStep(us[i - 1]) + extra));
+        return us;
+      };
+      let us = walk(0);
+      if (Math.abs(us[n] - startRad) > TWO) return null;
+      let lo = 0, hi = TWO;
+      for (let k = 0; k < 30; k++) {
+        const mid = (lo + hi) / 2;
+        if (Math.abs(walk(mid)[n] - startRad) <= TWO) lo = mid; else hi = mid;
+      }
+      us = walk(lo);
+      const k = TWO / Math.abs(us[n] - startRad);
+      const pts = [];
+      for (let i = 0; i < n; i++) pts.push(P(startRad + (us[i] - startRad) * k));
+      for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) if (clash(pts[i], pts[j])) return null;
+      return pts;
+    }
+
+    // need = { name: 最長姓名的字數權重, title: 最長職稱的字數權重 }
+    function layoutRing(n, availW, availH, startRad, dir, need) {
+      const tryTier = (namePt) => {
+        const titlePt = Math.max(8.5, namePt * 0.68);
+        const np = namePt * 4 / 3, tp = titlePt * 4 / 3;
+        const W = Math.round(Math.min(240, Math.max(100, need.name * np + 18, need.title * tp / 2 + 18)));
+        const H = Math.round(np * 1.25 + 2 * 0.85 * tp * 1.15 + 10);
+        const Rx = (availW - W) / 2, Ry = (availH - H) / 2;
+        const pts = computeRingPoints(n, Rx, Ry, W, H, 10, startRad, dir);
+        return pts ? { pts, W, H, namePt, titlePt, Rx, Ry } : null;
+      };
+      for (const pt of [22, 20, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9]) { const r = tryTier(pt); if (r) return r; }
+      return tryTier(8);
+    }
+
+
+    function prepareAndPrintA4(showEmptySeats = true, showEmptyInDirectory = true) {
+      const seatedCount = Object.keys(appState.table.seats).filter(k => appState.table.seats[k]).length;
+      
+      document.querySelectorAll('.printHeadingTitle').forEach(el => el.textContent = appState.event.title);
+      document.querySelectorAll('.printDateText').forEach(el => el.textContent = appState.event.date || '—');
+      document.querySelectorAll('.printTimeText').forEach(el => el.textContent = appState.event.time || '—');
+      document.querySelectorAll('.printVenueText').forEach(el => el.textContent = appState.event.venue || '—');
+      
+      document.getElementById('printTableNameText').textContent = appState.table.name;
+      document.getElementById('printSeatCapacityText').textContent = `共 ${appState.table.seatCount} 席`;
+      document.getElementById('printSeatedCountText').textContent = `${seatedCount} 人`;
+      
+      const now = new Date();
+      const printTimeStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+      document.getElementById('printTimestamp').textContent = printTimeStr;
+
+      // 方位標籤
+      const sideBox = { top: 'printSideTop', bottom: 'printSideBottom', left: 'printSideLeft', right: 'printSideRight' };
+      Object.values(sideBox).forEach(id => document.getElementById(id).innerHTML = '');
+      // 對齊 Word 範例：舞台為簡潔長條方框
+      [['stage', '舞　台'], ['entrance', '迎賓入口']].forEach(([key, label]) => {
+        const side = getDecorSide(key); if (side === 'none') return;
+        const v = side === 'left' || side === 'right';
+        const b = document.createElement('div');
+        if (key === 'stage' && !v) {
+          b.style.cssText = 'border:1.5px solid #333;background:#fff;color:#111;font-weight:700;font-size:12pt;letter-spacing:0.5em;text-align:center;padding:6px 40px;min-width:180px;';
+        } else {
+          b.style.cssText = `border:1.5px solid #333;background:#fff;color:#111;font-weight:700;font-size:11pt;display:flex;align-items:center;justify-content:center;padding:${v ? '14px 6px' : '4px 16px'};${v ? 'writing-mode:vertical-rl;' : ''}`;
+        }
+        b.textContent = label;
+        document.getElementById(sideBox[side]).appendChild(b);
+      });
+      const startNames = { 0: '正上方', 45: '右上方', 90: '正右方', 135: '右下方', 180: '正下方', 225: '左下方', 270: '正左方', 315: '左上方' };
+      document.getElementById('printFooterNote').textContent = `正式禮賓座次表 • 平面圖配置（依${tableDir() === 1 ? '順' : '逆'}時針席次排列，第 1 席位於${startNames[tableStart()] || '指定方位'}，為上座首位）`;
+
+      // 圓桌平面圖：依內容自動放大字級，名牌沿圓桌四周排開且不重疊（以實際尺寸列印，不縮放）
+      const seatCount = appState.table.seatCount;
+      const used = { top: 0, bottom: 0, left: 0, right: 0 };
+      ['stage', 'entrance'].forEach(k => { const sd = getDecorSide(k); if (sd !== 'none') used[sd]++; });
+      const availW = 725 - (used.left ? 44 : 0) - (used.right ? 44 : 0);
+      const availH = 1010 - 90 - (used.top ? 46 : 0) - (used.bottom ? 42 : 0);
+
+      const need = { name: 3, title: 3 };
+      for (let i = 0; i < seatCount; i++) {
+        const gid = appState.table.seats[i];
+        const gg = gid ? appState.guests.find(x => x.id === gid) : null;
+        if (gg) { need.name = Math.max(need.name, tw(gg.name)); need.title = Math.max(need.title, tw(gg.tag)); }
+      }
+      const startRad = tableStart() * Math.PI / 180;
+      const L = layoutRing(seatCount, availW, availH, startRad, tableDir(), need);
+      const pillW = L.W, pillH = L.H, namePt = L.namePt, titlePt = L.titlePt;
+
+      const container = document.getElementById('printCircleContainer');
+      container.innerHTML = '';
+      container.style.cssText = `position:relative;width:${availW}px;height:${availH}px;margin:0 auto;`;
+      const wrap = container;
+      const cx = availW / 2, cy = availH / 2;
+
+      let minR = 1e9;
+      L.pts.forEach(p => { minR = Math.min(minR, Math.hypot(Math.max(Math.abs(p.x) - pillW / 2, 0), Math.max(Math.abs(p.y) - pillH / 2, 0))); });
+      const innerD = Math.max(120, Math.min(2 * (minR - 12), 520));
+      const centerCircle = document.createElement('div');
+      centerCircle.style.cssText = `position:absolute;width:${innerD}px;height:${innerD}px;left:${cx}px;top:${cy}px;transform:translate(-50%,-50%);border:2px solid #222;border-radius:50%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:5;`;
+      centerCircle.innerHTML = `
+        <div style="font-family:serif;font-weight:700;font-size:16pt;color:#111;letter-spacing:0.08em;">${appState.table.name}</div>
+        <div style="font-size:11pt;color:#444;margin-top:4px;">共 ${seatCount} 席 · 已入 ${seatedCount}</div>`;
+      wrap.appendChild(centerCircle);
+
+      const inner = pillW - 14;
+      for (let i = 0; i < seatCount; i++) {
+        const guestId = appState.table.seats[i];
+        const guest = guestId ? appState.guests.find(g => g.id === guestId) : null;
+        if (!showEmptySeats && !guest) continue;
+
+        const p = L.pts[i];
+        const pill = document.createElement('div');
+        pill.style.cssText = [
+          'position:absolute',
+          `width:${pillW}px`,
+          `height:${pillH}px`,
+          `left:${cx + p.x}px`,
+          `top:${cy + p.y}px`,
+          'transform:translate(-50%,-50%)',
+          'box-sizing:border-box',
+          'padding:3px 6px',
+          'background:#fff',
+          'border:1.5px solid #222',
+          'border-radius:2px',
+          'display:flex',
+          'flex-direction:column',
+          'justify-content:center',
+          'align-items:center',
+          'text-align:center',
+          'z-index:10',
+          'overflow:hidden'
+        ].join(';');
+
+        if (guest) {
+          const tag = guest.tag || '';
+          const nm = guest.name || '';
+          const bgColor = guest.color || '#1b3a5b';
+          const txtColor = getContrastTextColor(bgColor);
+          pill.style.background = bgColor;
+          pill.style.border = '1.5px solid ' + bgColor;
+          pill.style.color = txtColor;
+          // 姓名過長時等比縮小；職稱過長時換成兩行（必要時再縮小）
+          let nPt = namePt;
+          if (tw(nm) * nPt * 4 / 3 > inner) nPt = nPt * inner / (tw(nm) * nPt * 4 / 3);
+          let tPt = titlePt, tTwo = false;
+          if (tw(tag) * tPt * 4 / 3 > inner) {
+            tPt = titlePt * 0.85; tTwo = true;
+            const r = (inner * 2) / (tw(tag) * tPt * 4 / 3);
+            if (r < 1) tPt *= r;
+          }
+          const tagStyle = `font-size:${tPt}pt;line-height:1.15;color:${txtColor};width:100%;text-align:center;${tTwo ? 'word-break:break-all;' : 'white-space:nowrap;'}overflow:hidden;`;
+          const nameStyle = `font-size:${nPt}pt;font-weight:700;line-height:1.25;color:${txtColor};${tag ? 'margin-top:2px;' : ''}width:100%;text-align:center;white-space:nowrap;overflow:hidden;`;
+          pill.innerHTML = `
+            ${tag ? `<div style="${tagStyle}">${tag}</div>` : ''}
+            <div style="${nameStyle}">${nm}</div>
+            <div style="font-size:8pt;color:${txtColor};opacity:0.85;position:absolute;top:1px;right:3px;line-height:1;">${i + 1}</div>`;
+        } else {
+          pill.style.border = '1.5px dashed #999';
+          pill.style.background = '#fff';
+          pill.innerHTML = `
+            <div style="font-size:11pt;font-weight:600;color:#666;">第 ${i + 1} 席</div>
+            <div style="font-size:9pt;color:#999;margin-top:1px;">空席</div>`;
+        }
+        wrap.appendChild(pill);
+      }
+
+      // 第 2 頁名冊
+      const tableBody = document.getElementById('printDirectoryTableBody');
+      tableBody.innerHTML = '';
+
+      for (let i = 0; i < seatCount; i++) {
+        const guestId = appState.table.seats[i];
+        const guest = guestId ? appState.guests.find(g => g.id === guestId) : null;
+
+        if (!showEmptyInDirectory && !guest) continue;
+
+        const row = document.createElement('tr');
+        row.className = i % 2 === 0 ? 'bg-white' : 'bg-slate-50/70';
+
+        if (guest) {
+          const guestColor = guest.color || '#1b3a5b';
+          row.innerHTML = `
+            <td class="px-2 text-center font-mono font-bold text-slate-800" style="font-size:10pt;padding:3px 6px;">第 ${i + 1} 席</td>
+            <td class="px-1 text-center" style="padding:3px 4px;">
+              <span class="inline-block w-3.5 h-3.5 rounded-sm border border-slate-300 align-middle" style="background-color: ${guestColor};"></span>
+            </td>
+            <td class="px-2 font-bold text-slate-900" style="font-size:11pt;padding:3px 6px;">${guest.name}</td>
+            <td class="px-2 text-slate-700" style="font-size:10pt;padding:3px 6px;">${guest.tag || '貴賓代表'}</td>
+            <td class="px-2 text-slate-600" style="font-size:9pt;padding:3px 6px;">${guest.note ? `<span class="px-1 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200">${guest.note}</span>` : '<span class="text-slate-300">-</span>'}</td>
+            <td class="px-2 text-center" style="padding:3px 6px;">
+              <span class="inline-block px-1.5 py-0.5 rounded font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200" style="font-size:9pt;">已就座</span>
+            </td>
+          `;
+        } else {
+          row.innerHTML = `
+            <td class="px-2 text-center font-mono text-slate-400" style="font-size:10pt;padding:3px 6px;">第 ${i + 1} 席</td>
+            <td class="px-1 text-center" style="padding:3px 4px;">
+              <span class="inline-block w-3.5 h-3.5 rounded-sm border border-dashed border-slate-300 align-middle bg-slate-100"></span>
+            </td>
+            <td class="px-2 text-slate-400 font-medium italic" style="font-size:10pt;padding:3px 6px;">（保留席位）</td>
+            <td class="px-2 text-slate-400" style="font-size:10pt;padding:3px 6px;">-</td>
+            <td class="px-2 text-slate-300" style="font-size:10pt;padding:3px 6px;">-</td>
+            <td class="px-2 text-center" style="padding:3px 6px;">
+              <span class="inline-block px-1.5 py-0.5 rounded font-medium bg-slate-100 text-slate-400 border border-slate-200" style="font-size:9pt;">空席</span>
+            </td>
+          `;
+        }
+
+        tableBody.appendChild(row);
+      }
+
+      setTimeout(() => {
+        window.print();
+      }, 80);
+    }
+
+    function saveToStorage() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+      } catch (e) {}
+    }
+
+    function loadFromStorage() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          appState = Object.assign(appState, parsed);
+          return true;
+        }
+      } catch (e) {}
+      return false;
+    }
+
+    function initEventListeners() {
+      ['eventTitle', 'eventDate', 'eventTime', 'eventVenue'].forEach(id => {
+        document.getElementById(id).addEventListener('input', (e) => {
+          const key = id.replace('event', '').toLowerCase();
+          appState.event[key] = e.target.value;
+          saveToStorage();
+        });
+      });
+
+      ['stage', 'entrance'].forEach(key => {
+        document.getElementById(key + 'Side').addEventListener('change', (e) => {
+          setDecorSide(key, e.target.value);
+          saveToStorage();
+          placeDecor();
+        });
+      });
+
+      document.getElementById('btnSaveProject').addEventListener('click', exportProjectJSON);
+      
+      const fileInput = document.getElementById('projectFileInput');
+      document.getElementById('btnLoadProjectTrigger').addEventListener('click', () => {
+        fileInput.value = '';
+        fileInput.click();
+      });
+      fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) loadProjectJSON(file);
+      });
+
+      document.getElementById('btnConfigPrimaryTable').addEventListener('click', openTableConfigModal);
+      document.getElementById('btnExportCSV').addEventListener('click', exportToCSV);
+      document.getElementById('btnPrint').addEventListener('click', openPrintPreview);
+      document.getElementById('btnSmartSeat').addEventListener('click', smartAutoSeat);
+
+      // 列印預覽相關
+      document.getElementById('btnClosePrintPreview').addEventListener('click', closePrintPreview);
+      document.getElementById('btnCancelPrintPreview').addEventListener('click', closePrintPreview);
+      document.getElementById('btnConfirmPrint').addEventListener('click', () => {
+        const showEmpty = document.getElementById('printShowEmptySeats').checked;
+        const showEmptyDir = document.getElementById('printShowEmptyInDirectory').checked;
+        closePrintPreview();
+        prepareAndPrintA4(showEmpty, showEmptyDir);
+      });
+
+      document.getElementById('btnClearSelection').addEventListener('click', () => {
+        selectedGuestIds.clear();
+        updateSelectionUI();
+        renderGuestList();
+      });
+
+      document.getElementById('btnResetAll').addEventListener('click', () => {
+        const overlay = createConfirmDialog('確定要還原為範例資料嗎？目前所有資料將被覆蓋。', () => {
+          localStorage.removeItem(STORAGE_KEY);
+          location.reload();
+        });
+        document.body.appendChild(overlay);
+      });
+
+      document.getElementById('btnNewBlank').addEventListener('click', () => {
+        document.body.appendChild(createConfirmDialog('將清除目前所有賓客與席位，以空白名單開始新活動。<br>建議先按「儲存備份」。確定要繼續嗎？', () => {
+          const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+          appState.event = { title: '宴會座位表', date: today, time: '18:30', venue: '' };
+          appState.table = { name: '主桌', seatCount: 20, x: 380, y: 160, seats: {}, startAngle: 0, direction: 'cw' };
+          appState.decor = { stage: { visible: true, side: 'top' }, entrance: { visible: true, side: 'bottom' } };
+          appState.guests = [];
+          appState.filter = { status: 'unseated', tag: 'ALL', search: '' };
+          selectedGuestIds.clear();
+          saveToStorage();
+          renderAll();
+          showToast('已建立空白新活動');
+        }));
+      });
+
+      document.getElementById('btnUnseatAll').addEventListener('click', () => {
+        const overlay = createConfirmDialog('確定要將全體賓客請起歸位嗎？', () => {
+          appState.table.seats = {};
+          selectedGuestIds.clear();
+          saveToStorage();
+          renderAll();
+          showToast('已將全體賓客請起歸位');
+        });
+        document.body.appendChild(overlay);
+      });
+
+      document.getElementById('guestSearch').addEventListener('input', (e) => {
+        appState.filter.search = e.target.value;
+        renderGuestList();
+      });
+
+      document.getElementById('tagFilter').addEventListener('change', (e) => {
+        appState.filter.tag = e.target.value;
+        renderGuestList();
+      });
+
+      document.querySelectorAll('.status-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.status-tab').forEach(t => {
+            t.classList.remove('border-gala-primary', 'text-gala-primary', 'font-bold');
+            t.classList.add('border-transparent', 'text-gala-muted');
+          });
+          tab.classList.add('border-gala-primary', 'text-gala-primary', 'font-bold');
+          tab.classList.remove('border-transparent', 'text-gala-muted');
+          appState.filter.status = tab.dataset.status;
+          renderGuestList();
+        });
+      });
+
+      document.getElementById('btnCloseTableModal').addEventListener('click', closeTableConfigModal);
+      document.getElementById('btnCancelTable').addEventListener('click', closeTableConfigModal);
+      document.getElementById('tableForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const name = document.getElementById('tableNameInput').value.trim();
+        const count = parseInt(document.getElementById('tableSeatCountInput').value);
+        if (!name) return;
+
+        appState.table.name = name;
+        appState.table.startAngle = parseInt(document.getElementById('tableStartInput').value) || 0;
+        appState.table.direction = document.getElementById('tableDirInput').value === 'ccw' ? 'ccw' : 'cw';
+        if (count !== appState.table.seatCount) {
+          for (let i = count; i < appState.table.seatCount; i++) {
+            delete appState.table.seats[i];
+          }
+          appState.table.seatCount = count;
+        }
+
+        saveToStorage();
+        renderAll();
+        closeTableConfigModal();
+        showToast(`主桌已更新為「${name}」(${count} 席)`);
+      });
+
+      document.getElementById('guestCustomColor').addEventListener('input', (e) => {
+        document.getElementById('guestColorHex').textContent = e.target.value;
+      });
+
+      document.getElementById('btnOpenAddModal').addEventListener('click', () => openGuestModal());
+      document.getElementById('btnCloseGuestModal').addEventListener('click', closeGuestModal);
+      document.getElementById('btnCancelGuest').addEventListener('click', closeGuestModal);
+
+      document.getElementById('guestForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const editId = document.getElementById('editGuestId').value;
+        const name = document.getElementById('guestNameInput').value.trim();
+        const tag = document.getElementById('guestTagInput').value.trim();
+        const note = document.getElementById('guestNoteInput').value.trim();
+        const color = document.getElementById('guestCustomColor').value;
+
+        if (!name) return;
+
+        if (editId) {
+          const guest = appState.guests.find(g => g.id === editId);
+          if (guest) {
+            guest.name = name;
+            guest.tag = tag;
+            guest.note = note;
+            guest.color = color;
+          }
+          showToast(`已更新「${name}」資料`);
+        } else {
+          const newGuest = {
+            id: `g_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+            name,
+            tag: tag || '貴賓代表',
+            color: color || '#1b3a5b',
+            note
+          };
+          appState.guests.push(newGuest);
+          showToast(`已新增賓客「${name}」`);
+        }
+
+        saveToStorage();
+        renderAll();
+        closeGuestModal();
+      });
+
+      const batchModal = document.getElementById('batchModal');
+      document.getElementById('btnOpenBatchModal').addEventListener('click', () => {
+        batchModal.classList.remove('hidden');
+        batchModal.classList.add('flex');
+        document.getElementById('batchInput').focus();
+      });
+      document.getElementById('btnCloseBatchModal').addEventListener('click', closeBatchModal);
+      document.getElementById('btnCancelBatch').addEventListener('click', closeBatchModal);
+
+      document.getElementById('btnInsertSample').addEventListener('click', () => {
+        document.getElementById('batchInput').value = 
+`蔡家福	中華奧會	貴賓席
+李執行長	主辦單位	主辦方致詞
+陳大名	銀牌	頒獎嘉賓
+李特聘顧問	國家智庫 院長	素食
+林常務理事	產經策進會	
+李大宗	銅牌	
+張總裁	全球科技 董事長	
+王大頭	金牌	致詞代表`;
+      });
+
+      document.getElementById('btnDoBatchImport').addEventListener('click', () => {
+        const text = document.getElementById('batchInput').value;
+        const newGuests = parseBatchInput(text);
+        if (newGuests.length === 0) {
+          showToast('請先貼入有效的名單內容');
+          return;
+        }
+        appState.guests = appState.guests.concat(newGuests);
+        saveToStorage();
+        renderAll();
+        closeBatchModal();
+        showToast(`已成功匯入 ${newGuests.length} 位賓客`);
+      });
+
+      // ================= 快捷鍵 =================
+      document.addEventListener('keydown', (e) => {
+        // 若正在輸入框中，不攔截
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+
+        // Ctrl/Cmd + S → 儲存備份
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+          e.preventDefault();
+          exportProjectJSON();
+          return;
+        }
+
+        // Esc → 關閉所有 Modal
+        if (e.key === 'Escape') {
+          closeTableConfigModal();
+          closeGuestModal();
+          closeBatchModal();
+          closePrintPreview();
+          return;
+        }
+
+        // Delete → 將選中的賓客請起（若已入座）
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          if (selectedGuestIds.size > 0) {
+            e.preventDefault();
+            selectedGuestIds.forEach(id => clearGuestFromSeats(id));
+            selectedGuestIds.clear();
+            saveToStorage();
+            renderAll();
+            showToast('已將選取賓客請起歸位');
+          }
+        }
+      });
+    }
+
+    function closeBatchModal() {
+      const modal = document.getElementById('batchModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      document.getElementById('batchInput').value = '';
+    }
+
+    function createConfirmDialog(message, onConfirm) {
+      const overlay = document.createElement('div');
+      overlay.className = 'fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4';
+      overlay.innerHTML = `
+        <div class="bg-white border border-gala-border rounded-2xl p-6 max-w-sm w-full shadow-2xl text-center space-y-4">
+          <div class="w-12 h-12 rounded-full bg-rose-50 text-rose-500 border border-rose-200 flex items-center justify-center mx-auto text-2xl">
+            <i class="ph-bold ph-warning-circle"></i>
+          </div>
+          <div class="text-xs text-gala-text leading-relaxed font-sans">${message}</div>
+          <div class="flex gap-2 justify-center pt-2">
+            <button class="btn-dialog-cancel px-4 py-2 text-xs text-gala-muted hover:text-gala-text rounded-lg border border-gala-border font-medium">取消</button>
+            <button class="btn-dialog-ok px-5 py-2 text-xs bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg shadow transition">確認執行</button>
+          </div>
+        </div>
+      `;
+      overlay.querySelector('.btn-dialog-cancel').addEventListener('click', () => overlay.remove());
+      overlay.querySelector('.btn-dialog-ok').addEventListener('click', () => {
+        overlay.remove();
+        onConfirm();
+      });
+      return overlay;
+    }
+
+    let toastTimeout = null;
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toastMsg');
+      toastMsg.textContent = msg;
+
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+
+      if (toastTimeout) clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        toast.classList.remove('translate-y-0', 'opacity-100');
+        toast.classList.add('translate-y-20', 'opacity-0');
+      }, 2600);
+    }
+  </script>
+</body>
+</html>
